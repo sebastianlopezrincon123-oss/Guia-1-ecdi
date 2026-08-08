@@ -81,86 +81,238 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 
-# Función general para graficar campo de pendientes y solución particular
-def graficar(f, x_range=(-3,3), y_range=(-3,3), cond_inicial=None, titulo=""):
-    x_vals = np.linspace(x_range[0], x_range[1], 25)  # más puntos
-    y_vals = np.linspace(y_range[0], y_range[1], 25)
+
+def graficar_edo(
+    f,
+    x_range=(-3, 3),
+    y_range=(-3, 3),
+    cond_inicial=None,
+    titulo="",
+    familia=None,
+    n=23
+):
+    """
+    Grafica:
+    - Campo de pendientes con flechas
+    - Familia de soluciones, si se proporciona
+    - Solución particular, si se proporciona condición inicial
+    """
+
+
+    x_vals = np.linspace(x_range[0], x_range[1], n)
+    y_vals = np.linspace(y_range[0], y_range[1], n)
+
     X, Y = np.meshgrid(x_vals, y_vals)
 
-    U = np.ones_like(X)
-    V = f(X, Y)
+    with np.errstate(
+        divide="ignore",
+        invalid="ignore",
+        over="ignore"
+    ):
+        M = f(X, Y)
 
-    # Normalizar para que todas las flechas tengan la misma longitud
+    M = np.where(np.isfinite(M), M, np.nan)
+
+    U = np.ones_like(M)
+    V = M
+
+    # Normalización
     N = np.sqrt(U**2 + V**2)
-    U, V = U/N, V/N
 
-    plt.figure(figsize=(8,6))
-    plt.quiver(X, Y, U, V, angles="xy", scale=40, width=0.003)  # width controla grosor
-    plt.title(titulo)
+    U = U / N
+    V = V / N
+
+    plt.figure(figsize=(10, 7))
+
+
+    # Campo de pendientes
+    plt.quiver(
+        X, Y,
+        U, V,
+
+        angles="xy",
+        scale_units="xy",
+        scale=8,
+
+        width=0.0025,
+
+        headwidth=4,
+        headlength=5,
+        headaxislength=4,
+
+        color="black"
+    )
+
+    if familia is not None:
+
+        familia(
+            f,
+            x_range,
+            y_range
+        )
+
+    if cond_inicial is not None:
+
+        x0, y0 = cond_inicial
+
+        x_der = np.linspace(
+            x0,
+            x_range[1],
+            600
+        )
+
+        sol_der = solve_ivp(
+            f,
+            [x0, x_range[1]],
+            [y0],
+            t_eval=x_der,
+            rtol=1e-9,
+            atol=1e-11
+        )
+
+
+        # -----------------------------
+        # Hacia la izquierda
+        # -----------------------------
+
+        x_izq = np.linspace(
+            x0,
+            x_range[0],
+            600
+        )
+
+        sol_izq = solve_ivp(
+            f,
+            [x0, x_range[0]],
+            [y0],
+            t_eval=x_izq,
+            rtol=1e-9,
+            atol=1e-11
+        )
+
+
+        plt.plot(
+            sol_der.t,
+            sol_der.y[0],
+            linewidth=3,
+            color="red",
+            label=f"Solución particular y({x0})={y0}"
+        )
+
+        plt.plot(
+            sol_izq.t,
+            sol_izq.y[0],
+            linewidth=3,
+            color="red"
+        )
+
+
+        # Punto inicial
+
+        plt.scatter(
+            x0,
+            y0,
+            color="red",
+            s=50,
+            zorder=5
+        )
+
+    plt.xlim(x_range)
+    plt.ylim(y_range)
+
     plt.xlabel("x")
     plt.ylabel("y")
-    plt.grid(True)
 
-    if cond_inicial:
-        sol = solve_ivp(f, [x_range[0], x_range[1]], [cond_inicial[1]],
-                        t_eval=np.linspace(x_range[0], x_range[1], 200))
-        plt.plot(sol.t, sol.y[0], 'r', label=f"Solución particular y({cond_inicial[0]})={cond_inicial[1]}")
-        plt.legend()
-
-    plt.show()
-
-def graficar_cd(f, x_range=(-2,2), y_range=(-2,2), cond_inicial=None, titulo=""):
-    # Más puntos para mayor detalle
-    x_vals = np.linspace(x_range[0], x_range[1], 50)
-    y_vals = np.linspace(y_range[0], y_range[1], 50)
-    X, Y = np.meshgrid(x_vals, y_vals)
-
-    U = np.ones_like(X)
-    V = f(X, Y)
-
-    # Recorte dinámico: calcula percentiles y limita extremos
-    v_min, v_max = np.percentile(V, [10, 90])
-    V = np.clip(V, v_min, v_max)
-
-    # Normalizar para que todas las flechas sean pequeñas
-    N = np.sqrt(U**2 + V**2)
-    U, V = U/N, V/N
-
-    plt.figure(figsize=(8,6))
-    plt.quiver(X, Y, U, V, angles="xy", scale=70, width=0.002, headwidth=3, headlength=4)
     plt.title(titulo)
-    plt.xlabel("x")
-    plt.ylabel("y")
-    plt.grid(True)
 
-    if cond_inicial:
-        sol = solve_ivp(f, [x_range[0], x_range[1]], [cond_inicial[1]],
-                        t_eval=np.linspace(x_range[0], x_range[1], 400))
-        plt.plot(sol.t, sol.y[0], 'r', label=f"Solución particular y({cond_inicial[0]})={cond_inicial[1]}")
+    plt.axhline(
+        0,
+        linewidth=0.8,
+        alpha=0.5
+    )
+
+    plt.axvline(
+        0,
+        linewidth=0.8,
+        alpha=0.5
+    )
+
+    plt.grid(
+        True,
+        alpha=0.25
+    )
+
+    if cond_inicial is not None:
         plt.legend()
 
+    plt.tight_layout()
     plt.show()
 
+graficar_edo(
+    lambda x, y: -y - np.sin(x),
 
+    x_range=(-3, 3),
+    y_range=(-3, 3),
 
-# a) y' = -y - sin(x), y(0)=1
-graficar(lambda x,y: -y - np.sin(x), cond_inicial=(0,1), titulo="a) y' = -y - sin(x)")
+    cond_inicial=(0, 1),
 
-# b) y' = x + y, y(-2)=2
-graficar(lambda x,y: x + y, cond_inicial=(-2,2), titulo="b) y' = x + y")
+    titulo="a) y' = -y - sin(x)"
+)
 
-# c) y' = -x^2 + sin(y), y(0)=0
-graficar_cd(lambda x,y: -x**2 + np.sin(y), cond_inicial=(0,0), titulo="c) y' = -x^2 + sin(y)")
+graficar_edo(
+    lambda x, y: x + y,
 
-# d) y' = (6x - 3xy)/(x^2+1), y(0)=0
-graficar_cd(lambda x,y: (6*x - 3*x*y)/(x**2+1), cond_inicial=(0,0), titulo="d) y' = (6x - 3xy)/(x^2+1)")
+    x_range=(-3, 3),
+    y_range=(-5, 5),
 
+    cond_inicial=(-2, 2),
 
-# e) y' = x e^y, ejemplo con y(0)=0
-graficar(lambda x,y: x*np.exp(y), cond_inicial=(0,0), titulo="e) y' = x e^y")
+    titulo="b) y' = x + y"
+)
+graficar_edo(
+    lambda x, y: -x**2 + np.sin(y),
 
-# f) y' = x - y, y(1)=1
-graficar(lambda x,y: x - y, cond_inicial=(1,1), titulo="f) y' = x - y")
+    x_range=(-3, 3),
+    y_range=(-3, 3),
+
+    cond_inicial=(0, 0),
+
+    titulo="c) y' = -x² + sin(y)"
+)
+
+graficar_edo(
+    lambda x, y: (6*x - 3*x*y) / (x**2 + 1),
+
+    x_range=(-3, 3),
+    y_range=(-3, 3),
+
+    cond_inicial=(0, 1),
+
+    titulo="d) (x² + 1)y' + 3xy = 6x"
+)
+
+graficar_edo(
+    lambda x, y: x * np.exp(y),
+
+    x_range=(-2, 2),
+    y_range=(-3, 3),
+
+    cond_inicial=(0, 0),
+
+    titulo="e) y' = x e^y"
+)
+
+graficar_edo(
+    lambda x, y: x - y,
+
+    x_range=(-3, 3),
+    y_range=(-3, 3),
+
+    cond_inicial=(1, 1),
+
+    titulo="f) y' = x - y"
+)
+
 ```
 
 
